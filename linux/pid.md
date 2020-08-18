@@ -111,11 +111,11 @@ a.  我们先启动一个bash：
 
    b. 使用`unshare`创建一个新的pid namespace, 并且启动一个新的bash进程：
 
-```shell
+      ```shell
       lw@lw-OptiPlex-7010:~/opensources/ExampleBank/thread_test$ sudo unshare --pid --mount-proc --fork /bin/bash 
       root@lw-OptiPlex-7010:/home/lw/opensources/ExampleBank/thread_test# echo $$
       1
-```
+      ```
 可以看到当前bash进程ID是1, 是在一个新的pid namespace中，我们将这一层作为pid namespace 2;
       
 c. 我们在pid namespace 2的bash中再创建一个新的pid namespace:
@@ -146,7 +146,7 @@ e. 新开启一个bash, 我们查看一下在顶层pid namespace 1中的pid:
    pid namespace 3中启动的bash的pid是1565557
       
 f. 在顶层pid namespace 1的bash中查看`vim 1`的pid 是 1565982：
-```shell
+ ```shell
       lw@lw-OptiPlex-7010:~$ ps aux |grep 'vim 1' | grep -v grep 
       root     1565982  0.0  0.1  64980 19980 pts/2    T    18:56   0:00 vim 1
 ```
@@ -169,7 +169,7 @@ h. 在pid namespace 3的bash中查看`vim 1`的pid 是 8:
 
   前面我们说过了，进程相关的ID除了PID(TID)，还有TDID, PGID, SID(Session ID), 在kernel中它们都被大一统起来，用`struct pid`表示, 它定义在`incluse/linux/pid.h`中；
 
-```c
+  ```c
   enum pid_type         
   {                     
   	PIDTYPE_PID,  
@@ -189,12 +189,14 @@ h. 在pid namespace 3的bash中查看`vim 1`的pid 是 8:
   	struct rcu_head rcu;                       
   	struct upid numbers[1];                    
   };
-```
+  ```
 
   1. count : 引用计数，因为这个pid变量可以代码这个task的pid(tid), 同时还可以是一组task的TGID, 甚至是一组进程的PGID, 所以其每被引用一次，引用计数加1；引用计数降为0时，代表其已无task引用，可以free掉了；
   2. level : 上面的namepsace图中我们已经看到pid namespace是一个层级结构，这个level就表示当前这个pid属于第几层，其上面还有level - 1层；
   3. struct upid numbers[1] ：初看起来是一个只有一个upid元素的数组，其实它是属于struct尾部的类似于0元素数组的动态数组，每次在分配`struct pid`时，`numbers`会被扩展到`level`个元素；
-它用来容纳在每一层pid namespace中的 id; 
+
+  ​      它用来容纳在每一层pid namespace中的 id; 
+
   4. struct hlist_head tasks[PIDTYPE_MAX] : 前面我们也已经说过，进程相关的ID除了PID(TID)，还有TDID, PGID, SID(Session ID)，因此这个`tasks`是一个hash链表的数组，
 
 #### 内核PID与PID Namespace
@@ -222,25 +224,27 @@ struct pid
 
   这个是Kernel里惯用的手法，结构体最后一个元素可以声明为动态数组，动态数组一般是在创建这个结构体时被动态分配内存。我们来看一下`struct pid`结构体的创建和初始化，这要追溯到task的创建，最终会追溯到定义在`kernel/fork.c`中的`copy_process`函数，它的具体流程我们在这里不详述，只看相关的pid部分：
 
-```c
+  ```c
   static __latent_entropy struct task_struct *copy_process(              
   			struct pid *pid,
   			int trace,
   			int node,
   			struct kernel_clone_args *args) {
+  				...
                   if (pid != &init_struct_pid) {                             
                       pid = alloc_pid(p->nsproxy->pid_ns_for_children);  
                       if (IS_ERR(pid)) {                                 
                           retval = PTR_ERR(pid);                     
                           goto bad_fork_cleanup_thread;              
                       }                                                  
-                  }         
+                  }                                                          
+                  ...
   			}
-```
+  ```
 
   下面我们来过一个`alloc_pid`函数，它定义在 `kernel/pid.c`中：
 
-```c
+  ```c
   struct pid *alloc_pid(struct pid_namespace *ns)
   {
       //分配内存并构造struct pid
@@ -251,11 +255,11 @@ struct pid
       tmp = ns;                                          
       pid->level = ns->level;
   }
-```
+  ```
 
   1. 首先使用`kmem_cache_alloc`分配内存并构造struct pid，它使用父pid namespace的pid_cachep来分配内存，这个`pid_cachep`是`kmem_cache`类型 ，它在`create_pid_namepsace`中被创建：
 
-```c
+     ```c
      static struct pid_namespace *create_pid_namespace(struct user_namespace *user_ns,
      ▸       struct pid_namespace *parent_pid_ns)                                     
      {                                                                                
@@ -270,11 +274,11 @@ struct pid
              ns->pid_cachep = create_pid_cachep(level); 
              ...
      }
-```
+     ```
      
   2. 接着再来看一下`create_pid_cachep`:
   
-```c
+     ```c
      static struct kmem_cache *create_pid_cachep(unsigned int level)                
      {                                                                              
      ▸       /* Level 0 is init_pid_ns.pid_cachep */                                
@@ -300,7 +304,7 @@ struct pid
      ▸       /* current can fail, but someone else can succeed. */                  
      ▸       return READ_ONCE(*pkc);                                                
      }                                                                              
-```
+     ```
   
      到此，我们解决了`struct pid`中`numbers`的分配问题。
 
@@ -326,7 +330,7 @@ struct pid
 
   `taks_struct`中有个成员变量`struct signal_struct *signal`，这个`struct signal_struct`也有个成员变量`struct pid *pids[PIDTYPE_MAX];`，如果当前的task表示进程，那这个`pids数组`用来存储PID, TGID, PGID, SID，其赋值是在`copy_process`中进行：
 
-```c
+  ```c
   //当前创建的p是进程
   if (thread_group_leader(p)) {    
           //新生成的pid就是这个线程组的TGID
@@ -348,17 +352,17 @@ struct pid
   ▸       attach_pid(p, PIDTYPE_SID);                              
   ▸       __this_cpu_inc(process_counts);                          
   }
-```
+  ```
 
   我们来重点看下`attach_pid`的实现：
 
-```c
+  ```c
   void attach_pid(struct task_struct *task, enum pid_type type)          
   {                                                                      
   ▸       struct pid *pid = *task_pid_ptr(task, type);                   
   ▸       hlist_add_head_rcu(&task->pid_links[type], &pid->tasks[type]); 
   }                                                                      
-```
+  ```
 
   主要作用就是能过调用`hlist_add_head_rcu`把当前task连接入pid->tasks对应的hash链表;
 
@@ -387,12 +391,15 @@ if (clone_flags & CLONE_THREAD) {
 
 ```c
 list_add_tail_rcu(&p->thread_group,                    
-▸       ▸         &p->group_leader->thread_group);               
+▸       ▸         &p->group_leader->thread_group);      
+list_add_tail_rcu(&p->thread_node,
+                  &p->signal->thread_head);         
 ```
 
-这段代码就是将当前的线程对应的`task_strcut`链接到其所在进程的主线程的`thread_group`链表中，至此同属于同一个线程组的所有线程对应的`task_struct`就全部链表在同一个双向链表中了：
+这段代码就是将当前的线程对应的`task_strcut`链接到其所在进程的主线程的`thread_group`链表中，至此同属于同一个线程组的所有线程对应的`task_struct`就全部链表在同一个双向链表中了，同时也使用`thread_node`和`signal->thread_head`将当前的thread都链表到了主线程的`signal`中的`thread_head`链表，通过它就可以很方便的遍历当前进程中的所有线程了：
 
-![tgid.png](https://upload-images.jianshu.io/upload_images/2020390-effcf9709e93acb4.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+![tgid.png](https://upload-images.jianshu.io/upload_images/2020390-7b4c3ccd33f02128.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+
 
 #### 后记
 
