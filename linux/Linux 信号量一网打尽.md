@@ -119,7 +119,7 @@ int main(int argc, char* argv[]) {
 
 标谁信号基本上是从Unix继承而来，包含下列表格中的这批信号：
 
-![](C:\Users\liuwei3-s\Desktop\截图20200901164738.png)
+![](./截图20200901164738.png)
 
 有以下几点需要注意：
 
@@ -470,7 +470,7 @@ void signal_wake_up_state(struct task_struct *t, unsigned int state)
 
   网上有张经典图，我们借用一下，来说明这个过程：
   
-  ![](E:\lw\signal.png)
+  ![](./signal.png)
   
   ```c
   void handle_signal(struct ksignal *ksig, struct pt_regs *regs) {
